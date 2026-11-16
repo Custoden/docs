@@ -1,0 +1,46 @@
+---
+title: "Threat intelligence"
+description: "Beyond advisory lookups, the API matches packages and workflows against techniques from published research on recent supply chain campaigns."
+---
+
+Indicators are literal strings, such as file names, hosts and IP addresses, that do not appear in legitimate code. Behavior rules cover the techniques campaigns share, so new variants are caught even when the indicators change.
+
+## Tracked campaigns
+
+| Campaign | First seen | How it shipped | What we detect |
+|---|---|---|---|
+| Shai-Hulud | Sep 2025 | Self-spreading npm worm. Ran TruffleHog on install, pushed `shai-hulud-workflow.yml` to every reachable repository | Workflow file name, `toJSON(secrets)`, webhook.site collector, secret scanner downloads |
+| Shai-Hulud 2.0 | Nov 2025 | `preinstall` dropper installed Bun to run an obfuscated stealer, registered a self-hosted runner named `SHA1HULUD`, added a discussion-triggered backdoor | `setup_bun.js`, `bun_environment.js`, Bun downloads, self-hosted runners on discussion triggers |
+| Shai-Hulud keyv wave | Aug 2026 | Compromised maintainer published `preinstall: node setup.mjs` droppers, planted autostart hooks for Claude Code and VS Code | `Math_Symbol.js`, writes to `.claude/settings.json` and `.vscode/tasks.json` |
+| Miasma (PyPI) | Jun 2026 | Wheels with `*-setup.pth` files that run on every Python startup, plus typosquats of Flask, Requests and NumPy | `.pth` files with network or process code, `sitecustomize.py`, `.bun_ran` |
+| s1ngularity (Nx) | Aug 2025 | Malicious Nx releases drove local AI coding CLIs with permission-bypass flags to inventory secrets | AI CLI permission bypass flags, `s1ngularity-repository`, `/tmp/inventory.txt` |
+| GhostAction | Sep 2025 | Stolen maintainer tokens used to commit fake "security" workflows that POST secrets, later every credential in git history | Collector hosts and IPs, `Prepare Cache Busting`, many secrets posted in one request, history harvesting |
+| tj-actions | Mar 2025 | Release tags moved to a commit that dumped runner memory and printed secrets double base64 encoded in public logs | Malicious commit SHA, `memdump.py`, `Runner.Worker` memory reads, double base64 |
+| StegaBin | Feb 2026 | Typosquats with install scripts loading a payload disguised as `vendor/scrypt-js/version.js` | Payload path, C2 IP address |
+
+## Recurring techniques
+
+The same handful of techniques shows up across campaigns. Each maps to a rule:
+
+* **Code that runs without being imported.** npm install scripts, Python `.pth` files and `sitecustomize.py`. See `install-script`, `startup-code-execution` and `startup-hook`.
+* **Bringing a second runtime.** Downloading Bun to run the payload outside Node.js tooling. See `bun-dropper`.
+* **Harvesting with real tools.** Running TruffleHog or Gitleaks on the machine or the repository history. See `secret-scanner-download` and `history-secret-harvest`.
+* **Hiding secrets from log masking.** Encoding secrets before printing them. See `log-masking-bypass`.
+* **Exfiltrating to disposable infrastructure.** Webhook services, paste sites, raw IP addresses and hostnames that embed an IP. See `exfil-endpoint`, `bare-ip-request` and `secret-exfiltration`.
+* **Using the victim's AI tools.** Running coding agents with permission checks disabled, or planting autostart hooks for them. See `ai-agent-abuse` and `agent-persistence`.
+* **Hiding the evidence.** Reverting or force-pushing over the malicious workflow after it runs. See [Scan recent runs](/api-reference/scan-recent-runs).
+* **Borrowing trust.** Look-alike action owners, unclaimed owner names, and forks of popular actions. See the action rules in [Workflow rules](/reference/workflow-rules#malicious-or-risky-actions).
+
+## Sources
+
+* Wiz: [Shai-Hulud npm supply chain attack](https://www.wiz.io/blog/shai-hulud-npm-supply-chain-attack)
+* GitGuardian: [Shai-Hulud](https://blog.gitguardian.com/shai-hulud-a-persistent-secret-leaking-campaign/), [GhostAction](https://blog.gitguardian.com/ghostaction-campaign-3-325-secrets-stolen/), [GhostAction returns](https://blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/)
+* Datadog Security Labs: [Shai-Hulud 2.0](https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/)
+* Sumo Logic: [Detecting Sha1-Hulud](https://www.sumologic.com/blog/detect-sha1-hulud)
+* Socket: [keyv and cacheable compromise](https://socket.dev/blog/popular-npm-packages-in-the-keyv-and-cacheable-namespaces-compromised-in-active-supply-chain), [Miasma PyPI wave](https://socket.dev/blog/shai-hulud-descends-to-hades-miasma-pypi-wave), [StegaBin](https://socket.dev/blog/stegabin-26-malicious-npm-packages-use-pastebin-steganography)
+* Aikido: [tensorlake compromise](https://www.aikido.dev/blog/tensorlake-npm-package-compromised)
+* GitLab: [Shai-Hulud copycat targets Python developers](https://about.gitlab.com/blog/shai-hulud-copycat-campaign-targets-python-developers/)
+* StepSecurity: [Nx compromise](https://www.stepsecurity.io/blog/supply-chain-security-alert-popular-nx-build-system-package-compromised-with-data-stealing-malware), [tj-actions/changed-files](https://www.stepsecurity.io/blog/harden-runner-detection-tj-actions-changed-files-action-is-compromised)
+* Snyk: [Weaponizing AI coding agents in Nx](https://snyk.io/blog/weaponizing-ai-coding-agents-for-malware-in-the-nx-malicious-package/)
+* GitHub Advisory: [GHSA-mrrh-fwg8-r2c3](https://github.com/advisories/GHSA-mrrh-fwg8-r2c3)
+* DugganUSA: [GhostAction returns](https://dugganusa.com/post/ghostaction-returns-fake-security-audit-workflow-exfil-ip-in-feed)

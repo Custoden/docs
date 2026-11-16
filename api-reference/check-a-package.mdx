@@ -1,0 +1,232 @@
+---
+title: "Check a package"
+openapi: "GET /v1/packages/{ecosystem}/{name}"
+description: "Returns a risk report for one npm or PyPI package version."
+---
+
+The report combines malware and vulnerability advisories, registry reputation, typosquatting checks, and a scan of the published artifact for code that runs on install or at Python startup.
+
+## Path parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `ecosystem` | string | `npm` or `pypi` |
+| `name` | string | Package name. Scoped npm names such as `@types/node` can be sent with a literal or encoded (`%2F`) slash. PyPI names are normalized, so `Django`, `django` and `DJANGO` are the same project |
+
+## Query parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `version` | string | Optional. Version to check. Defaults to the latest release |
+
+## Example
+
+```bash
+curl "https://api.custoden.com/v1/packages/npm/express?version=4.17.1"
+```
+
+```json
+{
+  "ecosystem": "npm",
+  "name": "express",
+  "version": "4.17.1",
+  "verdict": "ok",
+  "risk": "medium",
+  "findings": [],
+  "vulnerabilities": [
+    {
+      "id": "GHSA-rv95-896h-c2vc",
+      "aliases": ["CVE-2024-29041"],
+      "summary": "Express.js Open Redirect in malformed URLs",
+      "severity": "medium",
+      "fixed_in": ["4.19.2"],
+      "url": "https://osv.dev/vulnerability/GHSA-rv95-896h-c2vc"
+    },
+    {
+      "id": "GHSA-qw6h-vgh9-j6wx",
+      "aliases": ["CVE-2024-43796"],
+      "summary": "express vulnerable to XSS via response.redirect()",
+      "severity": "low",
+      "fixed_in": ["4.20.0"],
+      "url": "https://osv.dev/vulnerability/GHSA-qw6h-vgh9-j6wx"
+    }
+  ],
+  "package": {
+    "latest_version": "5.3.0",
+    "version_published_at": "2019-05-26T04:25:34.606Z",
+    "created_at": "2010-12-29T19:38:25.450Z",
+    "versions_count": 290,
+    "weekly_downloads": 198122501,
+    "maintainers_count": 5,
+    "repository": "https://github.com/expressjs/express",
+    "license": "MIT",
+    "install_scripts": {},
+    "artifact": {
+      "scanned": true,
+      "file": "express-4.17.1.tgz",
+      "files": 16,
+      "executed_on_install": []
+    }
+  },
+  "checked_at": "2026-11-16T10:58:20.334Z"
+}
+```
+
+### A removed malicious version
+
+npm and PyPI delete malware after it is reported, but lockfiles and caches keep the version. If OSV lists a deleted package or version as malicious, the API returns a report instead of a 404:
+
+```bash
+curl "https://api.custoden.com/v1/packages/npm/nx?version=21.5.0"
+```
+
+```json
+{
+  "ecosystem": "npm",
+  "name": "nx",
+  "version": "21.5.0",
+  "verdict": "malicious",
+  "risk": "critical",
+  "findings": [
+    {
+      "id": "known-malicious",
+      "severity": "critical",
+      "title": "Known malicious package",
+      "detail": "Malicious code in nx (npm). The registry has since removed this version. If it is in a lockfile or was installed, treat the machine as compromised.",
+      "references": ["https://osv.dev/vulnerability/MAL-2025-41443"]
+    }
+  ],
+  "vulnerabilities": [],
+  "package": {
+    "latest_version": "24.0.6",
+    "artifact": { "scanned": false, "reason": "removed_from_registry" },
+    "...": "..."
+  }
+}
+```
+
+### A malicious package
+
+```bash
+curl https://api.custoden.com/v1/packages/npm/discordi.js
+```
+
+```json
+{
+  "ecosystem": "npm",
+  "name": "discordi.js",
+  "version": "0.0.1-security",
+  "verdict": "malicious",
+  "risk": "critical",
+  "findings": [
+    {
+      "id": "removed-by-registry",
+      "severity": "critical",
+      "title": "Package was removed by npm for security reasons",
+      "detail": "npm replaced the package contents with its security placeholder.",
+      "references": ["https://www.npmjs.com/package/discordi.js"]
+    },
+    {
+      "id": "known-malicious",
+      "severity": "critical",
+      "title": "Known malicious package",
+      "detail": "Malicious code in discordi.js (npm)",
+      "references": [
+        "https://osv.dev/vulnerability/GHSA-fv9m-f7w4-889c",
+        "https://osv.dev/vulnerability/MAL-2025-18484"
+      ]
+    },
+    {
+      "id": "possible-typosquat",
+      "severity": "high",
+      "title": "Name resembles popular package \"discord.js\"",
+      "detail": "\"discordi.js\" differs from the widely used \"discord.js\" by one or two characters. Confirm you meant this package."
+    }
+  ]
+}
+```
+
+## Response
+
+| Field | Type | Description |
+|---|---|---|
+| `ecosystem` | string | `npm` or `pypi` |
+| `name` | string | Canonical package name from the registry |
+| `version` | string | Version that was checked |
+| `verdict` | string | `malicious`, `suspicious`, `review` or `ok`. See [Verdicts](#verdicts) |
+| `risk` | string | Highest severity across `findings` and `vulnerabilities`: `critical`, `high`, `medium`, `low` or `none` |
+| `findings` | array | Signals about the package itself, sorted by severity. See [Package findings](/reference/package-findings) |
+| `vulnerabilities` | array | Known vulnerabilities affecting this version |
+| `package` | object | Registry facts used in the analysis |
+| `checked_at` | string | ISO 8601 timestamp |
+
+### Finding
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Stable identifier, for example `known-malicious` |
+| `severity` | string | `critical`, `high`, `medium`, `low` or `info` |
+| `title` | string | One-line summary |
+| `detail` | string | Specifics for this package |
+| `references` | string[] | Optional links to advisories or registry pages |
+
+### Vulnerability
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Advisory ID, preferring GHSA when available |
+| `aliases` | string[] | Other IDs for the same issue, such as CVEs |
+| `summary` | string | Advisory title |
+| `severity` | string | `critical`, `high`, `medium`, `low` or `unknown` |
+| `fixed_in` | string[] | Versions that contain a fix. Empty when no fix is published |
+| `url` | string | Advisory page on osv.dev |
+
+### Package
+
+| Field | Type | Description |
+|---|---|---|
+| `latest_version` | string | Current latest release |
+| `version_published_at` | string \| null | When the checked version was published |
+| `created_at` | string \| null | When the first version was published |
+| `versions_count` | integer | Number of published versions |
+| `weekly_downloads` | integer \| null | Downloads in the last 7 days. `null` if the download service was unavailable |
+| `maintainers_count` | integer \| null | Number of maintainers or owners listed on the registry |
+| `repository` | string \| null | Linked source repository |
+| `license` | string \| null | Declared license |
+| `install_scripts` | object | npm lifecycle scripts that run on install (`preinstall`, `install`, `postinstall`, `prepare`), keyed by name. Always empty for PyPI |
+| `artifact` | object | Result of scanning the published tarball or wheel. See [Artifact](#artifact) |
+
+### Artifact
+
+The API downloads the published package and inspects code that runs without being imported, such as npm install scripts and Python startup files.
+
+| Field | Type | Description |
+|---|---|---|
+| `scanned` | boolean | Whether the artifact was scanned |
+| `file` | string | Artifact file name. Present when scanned |
+| `files` | integer | Number of files in the artifact. Present when scanned |
+| `executed_on_install` | string[] | Files that run on install or at interpreter startup. Present when scanned |
+| `reason` | string | Why it was not scanned: `no_artifact`, `too_large`, `unreadable_archive` or `removed_from_registry` |
+
+## Verdicts
+
+| Verdict | Assigned when | Suggested action |
+|---|---|---|
+| `malicious` | The package or version is in a malware advisory, the registry removed it for security reasons, or its install-time code matches a known campaign | Do not install. If it is already installed, treat the machine as compromised |
+| `suspicious` | At least one `high` finding, such as a likely typosquat with low adoption | Block by default and review manually |
+| `review` | At least one `medium` finding | Confirm the package is the one you intended |
+| `ok` | No findings above `low` | No action needed |
+
+Verdicts do not consider vulnerabilities. Use `risk` or the `vulnerabilities` array for those.
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `unsupported_ecosystem` | Ecosystem is not `npm` or `pypi` |
+| 400 | `invalid_package_name` | Name is not valid for the ecosystem |
+| 404 | `package_not_found` | Package does not exist and is not a known malicious package |
+| 404 | `version_not_found` | Version does not exist and is not a known malicious version |
+| 502 | `upstream_unavailable` | A registry or OSV did not respond |
+
+See [Errors](/getting-started/errors) for the response format.

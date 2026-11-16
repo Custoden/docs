@@ -1,0 +1,53 @@
+---
+title: "Package findings"
+description: "Every finding the package endpoints can return."
+---
+
+Every finding has a stable `id`. Severities shown are defaults; some change with context as noted.
+
+## Malware
+
+| ID | Severity | Meaning |
+|---|---|---|
+| `known-malicious` | critical | Listed in a malware advisory (OSV `MAL-` entries or GitHub advisories marked as malware) |
+| `removed-by-registry` | critical | npm replaced the package with its `0.0.1-security` placeholder |
+| `campaign-indicator` | critical | A file that runs on install contains an indicator from a [tracked campaign](/reference/threat-intelligence) |
+| `campaign-reference` | high | A campaign indicator appears in a file that does not run on install |
+
+## Install-time and startup code
+
+These come from scanning the published artifact. See [Artifact](/api-reference/check-a-package#artifact).
+
+| ID | Severity | Meaning |
+|---|---|---|
+| `install-script` | low to high | Has npm `preinstall`, `install`, `postinstall` or `prepare` scripts. High for new or little-used packages, low for established ones |
+| `startup-code-execution` | critical | A `.pth` file runs code that starts processes, makes network requests or decodes payloads every time Python starts |
+| `startup-hook` | high | Ships `sitecustomize.py` or `usercustomize.py`, which every Python process imports |
+| `pth-code` | low | A `.pth` file runs code at startup without network or process access. Some tools, such as coverage, do this legitimately |
+| `obfuscated-code` | high | Install-time code is heavily obfuscated |
+| `ai-agent-abuse` | critical | Runs AI coding CLIs with permission checks disabled (`--dangerously-skip-permissions`, `--yolo`, `--trust-all-tools`) |
+| `runner-memory-read` | critical | Reads CI runner process memory |
+| `bun-dropper` | high | Downloads the Bun runtime, used to run payloads outside Node.js monitoring |
+| `secret-scanner-download` | high | Downloads TruffleHog or Gitleaks |
+| `exfil-endpoint` | high | Contacts webhook, paste or tunnel services commonly used to receive stolen data |
+| `github-repo-creation` | high | Creates GitHub repositories through the API |
+| `agent-persistence` | high | Writes `.claude/settings.json`, VS Code `folderOpen` tasks or Copilot instructions |
+| `workflow-injection` | high | Writes files into `.github/workflows` |
+| `encoded-eval` | high | Executes base64-decoded code |
+| `remote-shell` | high | Pipes a downloaded script into a shell or interpreter |
+| `cloud-metadata` | medium | Queries the cloud instance metadata service |
+| `bare-ip-request` | medium | Sends requests to a hardcoded public IP address |
+
+## Reputation
+
+| ID | Severity | Meaning |
+|---|---|---|
+| `possible-typosquat` | high or medium | Name is close to a widely used package. High when the package is also new or little used |
+| `new-publisher` | medium, high with install scripts | This version was published by an account that never published the package before |
+| `new-package` | medium or low | The package was first published recently |
+| `fresh-release` | info | This version was published in the last few days |
+| `low-adoption` | low | Very few downloads |
+| `no-source-repository` | low | No linked source repository |
+| `deprecated` | low | The npm version is deprecated |
+| `yanked` | medium | The PyPI release was yanked |
+| `sdist-only` | low | PyPI release has no wheel, so installing it runs `setup.py` |

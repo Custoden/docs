@@ -1,0 +1,69 @@
+---
+title: "Rate limits"
+description: "The API is free and keyless, so limits are deliberately low."
+---
+
+They apply per client IP address and are counted in units.
+
+| Window | Units |
+|---|---|
+| Per minute | 10 |
+| Per day | 100 |
+
+## Cost per request
+
+| Endpoint | Units |
+|---|---|
+| [`GET /v1/packages/{ecosystem}/{name}`](/api-reference/check-a-package) | 1 |
+| [`POST /v1/packages/check`](/api-reference/check-multiple-packages) | 1 per package (up to 10) |
+| [`POST /v1/github/workflows/analyze`](/api-reference/analyze-a-workflow) | 2 |
+| [`GET /v1/github/repos/{owner}/{repo}/runs`](/api-reference/scan-recent-runs) | 10 |
+
+Requests rejected for invalid input are not charged.
+
+## Headers
+
+Every charged response includes:
+
+| Header | Description |
+|---|---|
+| `RateLimit-Limit` | Units allowed in the current minute |
+| `RateLimit-Remaining` | Units left in the current minute |
+| `RateLimit-Reset` | Seconds until the minute window resets |
+
+## When you exceed a limit
+
+The API returns `429 Too Many Requests` with a `Retry-After` header in seconds:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 42
+RateLimit-Limit: 10
+RateLimit-Remaining: 0
+RateLimit-Reset: 42
+```
+
+```json
+{
+  "error": {
+    "code": "rate_limited",
+    "message": "Rate limit exceeded (10 requests per minute). Retry in 42 seconds.",
+    "details": { "scope": "minute", "retry_after": 42 }
+  },
+  "request_id": "0b9d6a3e-1f0e-4c51-9a8e-2f4f8f0c6d11"
+}
+```
+
+`details.scope` is `minute` or `day`.
+
+## Temporary unavailability
+
+The GitHub endpoints can occasionally return `503` with code `temporarily_unavailable` and a `retry_after` in seconds. Workflow analysis still returns its static findings in that case and reports `checks.action_repositories.status: "skipped"`.
+
+## Caching
+
+Package responses include `Cache-Control: public, max-age=300`, so you can cache them for 5 minutes.
+
+## Shared IP addresses
+
+CI runners and corporate networks often share an outbound IP. If you hit the daily limit from shared infrastructure, batch your package checks and cache results, or [open an issue](https://github.com/Custoden/docs/issues) to discuss higher limits.

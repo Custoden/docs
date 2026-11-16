@@ -1,0 +1,66 @@
+---
+title: "Scan workflows on pull requests"
+description: "Analyze changed workflows on pull requests and scan run history daily."
+---
+
+Two jobs that work together:
+
+* On pull requests, analyze any workflow file the pull request changes.
+* On a daily schedule, scan recent runs to catch workflows that ran and were then removed or force-pushed away.
+
+## Check changed workflows
+
+```yaml
+name: Workflow check
+on:
+  pull_request:
+    paths: ['.github/workflows/**']
+permissions:
+  contents: read
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Analyze changed workflows
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          status=0
+          for f in $(git diff --name-only --diff-filter=AM "$BASE"...HEAD -- .github/workflows); do
+            report=$(curl -sf -X POST https://api.custoden.com/v1/github/workflows/analyze --data-binary @"$f")
+            echo "$report" | jq -r --arg f "$f" '.findings[] | "\($f):\(.location.line) \(.severity) \(.rule): \(.title)"'
+            if echo "$report" | jq -e '.summary.critical + .summary.high > 0' > /dev/null; then status=1; fi
+          done
+          exit $status
+```
+
+This uses the `pull_request` trigger, so code from forks runs without access to secrets.
+
+## Scan recent runs daily
+
+```yaml
+name: Run history check
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scan the last 50 runs
+        run: |
+          report=$(curl -sf "https://api.custoden.com/v1/github/repos/${{ github.repository }}/runs?limit=50")
+          echo "$report" | jq -r '.findings[] | "\(.severity) \(.rule) \(.workflow.path)@\(.workflow.commit[0:7]): \(.detail)"'
+          echo "$report" | jq -e '.summary.critical + .summary.high == 0' > /dev/null
+```
+
+A failure here means a workflow version that is no longer in the repository did something worth investigating. Open the run URLs from the `runs` array while GitHub still has the logs.
+
+Each scan costs 10 units, so a daily scan uses a small part of the 100-unit daily limit.

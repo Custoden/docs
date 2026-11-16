@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 32" fill="none">
+  <g fill="#e1251b" transform="translate(0 6)">
+    <path d="M0 0H20V6H6V14H20V20H0Z"/>
+    <rect x="10" y="8.5" width="3" height="3"/>
+  </g>
+  <text x="30" y="22" fill="#0a0a0a" font-family="Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="600" letter-spacing="-0.36">Custoden</text>
+</svg>

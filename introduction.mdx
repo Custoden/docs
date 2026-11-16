@@ -1,0 +1,67 @@
+---
+title: "Custoden API"
+description: "A free, public API for checking open-source dependencies and CI pipelines before they reach your environment. No account or API key."
+---
+
+```bash
+curl https://api.custoden.com/v1/packages/npm/expres
+```
+
+```json
+{
+  "ecosystem": "npm",
+  "name": "expres",
+  "version": "0.0.5",
+  "verdict": "review",
+  "risk": "medium",
+  "findings": [
+    {
+      "id": "possible-typosquat",
+      "severity": "medium",
+      "title": "Name resembles popular package \"express\"",
+      "detail": "\"expres\" differs from the widely used \"express\" by one or two characters. Confirm you meant this package."
+    }
+  ]
+}
+```
+
+## Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Check a package" icon="box" href="/api-reference/check-a-package">
+    Malware, install-time code, typosquatting and known vulnerabilities for one npm or PyPI package.
+  </Card>
+  <Card title="Check multiple packages" icon="boxes-stacked" href="/api-reference/check-multiple-packages">
+    Up to 10 packages in one request.
+  </Card>
+  <Card title="Analyze a workflow" icon="github" href="/api-reference/analyze-a-workflow">
+    Secret theft, script injection, risky actions and permission issues in a GitHub Actions workflow.
+  </Card>
+  <Card title="Scan recent runs" icon="clock-rotate-left" href="/api-reference/scan-recent-runs">
+    The workflows that actually ran, including ones later reverted or force-pushed away.
+  </Card>
+</CardGroup>
+
+## Base URL
+
+```
+https://api.custoden.com
+```
+
+All responses are JSON. Requests with a body accept JSON, and the workflow endpoint also accepts raw YAML.
+
+## Data sources
+
+* Package metadata and published artifacts from the npm registry and PyPI
+* Vulnerability and malware advisories from [OSV](https://osv.dev), which includes the GitHub Advisory Database and the OpenSSF Malicious Packages dataset
+* Download counts from the npm downloads API and [pypistats.org](https://pypistats.org)
+* Workflow runs and repository metadata from the GitHub API
+* Indicators and techniques from published campaign research. See [Threat intelligence](/reference/threat-intelligence)
+
+Workflows and package contents are analyzed in memory and not stored.
+
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/getting-started/quickstart" />
+  <Card title="Rate limits" icon="gauge" href="/getting-started/rate-limits" />
+  <Card title="OpenAPI spec" icon="file-code" href="/openapi.yaml" />
+</CardGroup>

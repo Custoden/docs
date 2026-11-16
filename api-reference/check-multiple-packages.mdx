@@ -1,0 +1,88 @@
+---
+title: "Check multiple packages"
+openapi: "POST /v1/packages/check"
+description: "Checks up to 10 packages in one request."
+---
+
+Each package costs one unit of your [rate limit](/getting-started/rate-limits).
+
+## Request body
+
+```json
+{
+  "packages": [
+    { "ecosystem": "npm", "name": "express", "version": "4.17.1" },
+    { "ecosystem": "npm", "name": "discordi.js" },
+    { "ecosystem": "pypi", "name": "requests" }
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `packages` | array | 1 to 10 items |
+| `packages[].ecosystem` | string | `npm` or `pypi` |
+| `packages[].name` | string | Package name |
+| `packages[].version` | string | Optional. Defaults to the latest release |
+
+The whole request is rejected with `400` if any item is malformed. Lookups that fail for a single package, such as a missing package, are returned in that item's `error` field and do not fail the request.
+
+## Example
+
+```bash
+curl -X POST https://api.custoden.com/v1/packages/check \
+  -H "Content-Type: application/json" \
+  -d '{
+    "packages": [
+      { "ecosystem": "npm", "name": "express", "version": "4.17.1" },
+      { "ecosystem": "npm", "name": "discordi.js" },
+      { "ecosystem": "npm", "name": "nope-not-real-zzzq" }
+    ]
+  }'
+```
+
+```json
+{
+  "results": [
+    {
+      "input": { "ecosystem": "npm", "name": "express", "version": "4.17.1" },
+      "report": { "name": "express", "version": "4.17.1", "verdict": "ok", "risk": "medium", "...": "..." }
+    },
+    {
+      "input": { "ecosystem": "npm", "name": "discordi.js" },
+      "report": { "name": "discordi.js", "verdict": "malicious", "risk": "critical", "...": "..." }
+    },
+    {
+      "input": { "ecosystem": "npm", "name": "nope-not-real-zzzq" },
+      "error": {
+        "code": "package_not_found",
+        "message": "npm package \"nope-not-real-zzzq\" does not exist.",
+        "details": {
+          "hint": "If an AI assistant suggested this name, do not install it. Unregistered names can be claimed by attackers."
+        }
+      }
+    }
+  ]
+}
+```
+
+## Response
+
+| Field | Type | Description |
+|---|---|---|
+| `results` | array | One item per input, in the same order |
+| `results[].input` | object | The package as submitted |
+| `results[].report` | object | Present on success. Same shape as [Check a package](/api-reference/check-a-package#response) |
+| `results[].error` | object | Present on failure, with `code`, `message` and optional `details` |
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_json` | Body is not valid JSON |
+| 400 | `invalid_request` | `packages` is missing or an item lacks `ecosystem` or `name` |
+| 400 | `too_many_packages` | More than 10 items |
+| 400 | `unsupported_ecosystem` | An item has an unsupported ecosystem |
+| 400 | `invalid_package_name` | An item has an invalid name |
+| 413 | `payload_too_large` | Body exceeds 64 KB |
+| 429 | `rate_limited` | Not enough remaining units for the whole batch |

@@ -1,0 +1,379 @@
+openapi: 3.1.0
+info:
+  title: Custoden API
+  version: v1
+  description: Free, keyless API for checking open-source packages and GitHub Actions workflows.
+  contact:
+    url: https://github.com/Custoden/docs
+servers:
+  - url: https://api.custoden.com
+security: []
+
+paths:
+  /v1/packages/{ecosystem}/{name}:
+    get:
+      operationId: checkPackage
+      summary: Check a package
+      description: Costs 1 rate limit unit.
+      parameters:
+        - name: ecosystem
+          in: path
+          required: true
+          schema: { type: string, enum: [npm, pypi] }
+        - name: name
+          in: path
+          required: true
+          description: Package name. Scoped npm names may contain a literal or encoded slash.
+          schema: { type: string }
+        - name: version
+          in: query
+          required: false
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '200':
+          description: Risk report
+          headers:
+            RateLimit-Limit: { $ref: '#/components/headers/RateLimit-Limit' }
+            RateLimit-Remaining: { $ref: '#/components/headers/RateLimit-Remaining' }
+            RateLimit-Reset: { $ref: '#/components/headers/RateLimit-Reset' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PackageReport' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '502': { $ref: '#/components/responses/Error' }
+
+  /v1/packages/check:
+    post:
+      operationId: checkPackages
+      summary: Check multiple packages
+      description: Costs 1 rate limit unit per package.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packages]
+              properties:
+                packages:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items: { $ref: '#/components/schemas/PackageInput' }
+      responses:
+        '200':
+          description: One result per input, in order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      required: [input]
+                      properties:
+                        input: { $ref: '#/components/schemas/PackageInput' }
+                        report: { $ref: '#/components/schemas/PackageReport' }
+                        error: { $ref: '#/components/schemas/ErrorBody' }
+        '400': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/github/workflows/analyze:
+    post:
+      operationId: analyzeWorkflow
+      summary: Analyze a GitHub Actions workflow
+      description: Costs 2 rate limit units. Body up to 256 KB.
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema: { type: string, description: Workflow YAML }
+          application/json:
+            schema:
+              type: object
+              required: [workflow]
+              properties:
+                workflow: { type: string }
+      responses:
+        '200':
+          description: Workflow report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowReport' }
+        '400': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/github/repos/{owner}/{repo}/runs:
+    get:
+      operationId: scanRecentRuns
+      summary: Scan recent workflow runs
+      description: Costs 10 rate limit units. Public repositories only.
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$' }
+        - name: repo
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$' }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 30 }
+      responses:
+        '200':
+          description: Run history report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunsReport' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+components:
+  headers:
+    RateLimit-Limit:
+      description: Units allowed in the current minute
+      schema: { type: integer }
+    RateLimit-Remaining:
+      description: Units left in the current minute
+      schema: { type: integer }
+    RateLimit-Reset:
+      description: Seconds until the minute window resets
+      schema: { type: integer }
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    Severity:
+      type: string
+      enum: [critical, high, medium, low, info]
+
+    SeveritySummary:
+      type: object
+      required: [critical, high, medium, low, info, total]
+      properties:
+        critical: { type: integer }
+        high: { type: integer }
+        medium: { type: integer }
+        low: { type: integer }
+        info: { type: integer }
+        total: { type: integer }
+
+    PackageInput:
+      type: object
+      required: [ecosystem, name]
+      properties:
+        ecosystem: { type: string, enum: [npm, pypi] }
+        name: { type: string }
+        version: { type: string, maxLength: 128 }
+
+    Finding:
+      type: object
+      required: [id, severity, title, detail]
+      properties:
+        id: { type: string }
+        severity: { $ref: '#/components/schemas/Severity' }
+        title: { type: string }
+        detail: { type: string }
+        references: { type: array, items: { type: string, format: uri } }
+
+    Vulnerability:
+      type: object
+      required: [id, aliases, summary, severity, fixed_in, url]
+      properties:
+        id: { type: string }
+        aliases: { type: array, items: { type: string } }
+        summary: { type: string }
+        severity: { type: string, enum: [critical, high, medium, low, unknown] }
+        fixed_in: { type: array, items: { type: string } }
+        url: { type: string, format: uri }
+
+    Artifact:
+      oneOf:
+        - type: object
+          required: [scanned, file, files, executed_on_install]
+          properties:
+            scanned: { const: true }
+            file: { type: string }
+            files: { type: integer }
+            executed_on_install: { type: array, items: { type: string } }
+        - type: object
+          required: [scanned, reason]
+          properties:
+            scanned: { const: false }
+            reason: { type: string, enum: [no_artifact, too_large, unreadable_archive, removed_from_registry] }
+
+    PackageReport:
+      type: object
+      required: [ecosystem, name, version, verdict, risk, findings, vulnerabilities, package, checked_at]
+      properties:
+        ecosystem: { type: string, enum: [npm, pypi] }
+        name: { type: string }
+        version: { type: string }
+        verdict: { type: string, enum: [malicious, suspicious, review, ok] }
+        risk: { type: string, enum: [critical, high, medium, low, none] }
+        findings: { type: array, items: { $ref: '#/components/schemas/Finding' } }
+        vulnerabilities: { type: array, items: { $ref: '#/components/schemas/Vulnerability' } }
+        package:
+          type: object
+          properties:
+            latest_version: { type: string }
+            version_published_at: { type: [string, 'null'], format: date-time }
+            created_at: { type: [string, 'null'], format: date-time }
+            versions_count: { type: integer }
+            weekly_downloads: { type: [integer, 'null'] }
+            maintainers_count: { type: [integer, 'null'] }
+            repository: { type: [string, 'null'] }
+            license: { type: [string, 'null'] }
+            install_scripts: { type: object, additionalProperties: { type: string } }
+            artifact: { $ref: '#/components/schemas/Artifact' }
+        checked_at: { type: string, format: date-time }
+
+    Location:
+      type: object
+      required: [line, column, job, step]
+      properties:
+        line: { type: integer }
+        column: { type: integer }
+        job: { type: [string, 'null'] }
+        step: { type: [string, 'null'] }
+
+    WorkflowFinding:
+      type: object
+      required: [rule, severity, title, detail, remediation, location]
+      properties:
+        rule: { type: string }
+        severity: { $ref: '#/components/schemas/Severity' }
+        title: { type: string }
+        detail: { type: string }
+        remediation: { type: string }
+        location: { $ref: '#/components/schemas/Location' }
+
+    Check:
+      type: object
+      required: [status, checked, total]
+      properties:
+        status: { type: string, enum: [complete, partial, skipped] }
+        checked: { type: integer }
+        total: { type: integer }
+        reason: { type: string }
+
+    WorkflowReport:
+      type: object
+      required: [workflow, summary, findings, actions]
+      properties:
+        workflow:
+          type: object
+          properties:
+            name: { type: [string, 'null'] }
+            triggers: { type: array, items: { type: string } }
+            jobs: { type: integer }
+        summary: { $ref: '#/components/schemas/SeveritySummary' }
+        findings: { type: array, items: { $ref: '#/components/schemas/WorkflowFinding' } }
+        actions:
+          type: array
+          items:
+            type: object
+            properties:
+              uses: { type: string }
+              owner: { type: string }
+              repo: { type: string }
+              location: { $ref: '#/components/schemas/Location' }
+        checks:
+          type: object
+          properties:
+            action_repositories: { $ref: '#/components/schemas/Check' }
+
+    RunsReport:
+      type: object
+      required: [repository, runs_scanned, summary, findings, runs, checks, checked_at]
+      properties:
+        repository:
+          type: object
+          properties:
+            full_name: { type: string }
+            default_branch: { type: string }
+            url: { type: string, format: uri }
+        runs_scanned: { type: integer }
+        summary: { $ref: '#/components/schemas/SeveritySummary' }
+        findings:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/WorkflowFinding'
+              - type: object
+                properties:
+                  workflow:
+                    type: object
+                    properties:
+                      path: { type: string }
+                      commit: { type: string }
+                      state: { $ref: '#/components/schemas/WorkflowState' }
+                  runs: { type: array, items: { type: integer } }
+        runs:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              url: { type: string, format: uri }
+              workflow_name: { type: [string, 'null'] }
+              workflow_path: { type: string }
+              event: { type: string }
+              branch: { type: [string, 'null'] }
+              commit: { type: string }
+              actor: { type: [string, 'null'] }
+              created_at: { type: string, format: date-time }
+              conclusion: { type: [string, 'null'] }
+              from_fork: { type: boolean }
+              workflow_state: { $ref: '#/components/schemas/WorkflowState' }
+              commit_state: { type: string, enum: [on_branch, rewritten, branch_deleted, not_checked] }
+              findings: { type: integer }
+        checks:
+          type: object
+          properties:
+            branch_history: { $ref: '#/components/schemas/Check' }
+        checked_at: { type: string, format: date-time }
+
+    WorkflowState:
+      type: string
+      enum: [current, modified, removed, unavailable, dynamic]
+
+    ErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object }
+
+    ErrorResponse:
+      type: object
+      required: [error, request_id]
+      properties:
+        error: { $ref: '#/components/schemas/ErrorBody' }
+        request_id: { type: string }

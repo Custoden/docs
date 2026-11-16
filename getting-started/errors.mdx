@@ -1,0 +1,50 @@
+---
+title: "Errors"
+description: "Status codes, error codes and the error response format."
+---
+
+Errors use standard HTTP status codes and a consistent JSON body:
+
+```json
+{
+  "error": {
+    "code": "package_not_found",
+    "message": "PyPI project \"reqeusts\" does not exist.",
+    "details": {
+      "hint": "If an AI assistant suggested this name, do not install it. Unregistered names can be claimed by attackers."
+    }
+  },
+  "request_id": "f1d8b98d-79a1-4034-8848-51a4ec0c2a54"
+}
+```
+
+`details` is only present for some errors. Include `request_id` (also sent as the `X-Request-Id` header) when contacting support.
+
+## Error codes
+
+| Status | Code | Cause |
+|---|---|---|
+| 400 | `unsupported_ecosystem` | Ecosystem is not `npm` or `pypi` |
+| 400 | `invalid_package_name` | Name does not follow the registry's naming rules |
+| 400 | `invalid_version` | Version string is longer than 128 characters |
+| 400 | `invalid_json` | Request body is not valid JSON |
+| 400 | `invalid_request` | Body is missing required fields |
+| 400 | `too_many_packages` | Batch contains more than 10 packages |
+| 400 | `invalid_repository` | Owner or repository is not a valid GitHub name |
+| 400 | `invalid_limit` | `limit` is not an integer from 1 to 50 |
+| 404 | `package_not_found` | Package does not exist on the registry |
+| 404 | `version_not_found` | Package exists but the version does not. `details.latest_version` is included |
+| 404 | `repository_not_found` | GitHub repository does not exist or is private |
+| 404 | `not_found` | Unknown endpoint |
+| 413 | `payload_too_large` | Body exceeds 64 KB (batch) or 256 KB (workflow) |
+| 422 | `invalid_workflow` | Body is not valid YAML or has no `jobs` map. `details.line` and `details.column` point to the parse error |
+| 429 | `rate_limited` | See [Rate limits](/getting-started/rate-limits) |
+| 502 | `upstream_unavailable` | npm, PyPI, OSV or GitHub did not respond. `details.source` names the service. Retry after a short delay |
+| 503 | `temporarily_unavailable` | The endpoint is briefly unavailable. `details.retry_after` is in seconds |
+| 500 | `internal_error` | Unexpected error |
+
+## Packages that do not exist
+
+A `package_not_found` error is a useful result on its own. AI coding assistants sometimes suggest packages that do not exist, and attackers register those names. Treat a missing package as a reason to stop, not to retry.
+
+Registries delete malware once it is reported, so a lockfile can pin a version that no longer exists. If OSV lists the missing package or version as malicious, you get a normal `200` report with `verdict: "malicious"` instead of a 404. See [Check a package](/api-reference/check-a-package#a-removed-malicious-version).

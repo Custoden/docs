@@ -1,0 +1,92 @@
+---
+title: "Quickstart"
+description: "No sign-up or API key is needed."
+---
+
+Every example below works as-is.
+
+## Check a package
+
+```bash
+curl https://api.custoden.com/v1/packages/npm/lodash
+```
+
+Pin a version with `?version=`:
+
+```bash
+curl "https://api.custoden.com/v1/packages/pypi/django?version=3.0"
+```
+
+Scoped npm packages work with or without encoding the slash:
+
+```bash
+curl https://api.custoden.com/v1/packages/npm/@types/node
+```
+
+The two fields to act on:
+
+| Field | Meaning |
+|---|---|
+| `verdict` | Trust in the package itself: `malicious`, `suspicious`, `review` or `ok` |
+| `risk` | Highest severity across findings and known vulnerabilities |
+
+A package can have `verdict: ok` and `risk: high` when it is legitimate but the requested version has a known vulnerability.
+
+## Check a list of packages
+
+```bash
+curl -X POST https://api.custoden.com/v1/packages/check \
+  -H "Content-Type: application/json" \
+  -d '{
+    "packages": [
+      { "ecosystem": "npm", "name": "express", "version": "4.17.1" },
+      { "ecosystem": "pypi", "name": "requests" }
+    ]
+  }'
+```
+
+## Analyze a workflow
+
+Send the YAML file as the request body:
+
+```bash
+curl -X POST https://api.custoden.com/v1/github/workflows/analyze \
+  --data-binary @.github/workflows/ci.yml
+```
+
+## Scan recent workflow runs
+
+Check what ran in a public repository over its last 30 runs, including workflows that were later removed:
+
+```bash
+curl https://api.custoden.com/v1/github/repos/OWNER/REPO/runs
+```
+
+## JavaScript
+
+```js
+const res = await fetch('https://api.custoden.com/v1/packages/npm/left-pad')
+const report = await res.json()
+
+if (report.verdict === 'malicious' || report.verdict === 'suspicious') {
+  throw new Error(`${report.name}: ${report.findings[0].title}`)
+}
+```
+
+## Python
+
+```python
+import requests
+
+report = requests.get("https://api.custoden.com/v1/packages/pypi/requests").json()
+
+for finding in report["findings"]:
+    print(finding["severity"], finding["title"])
+```
+
+## Next steps
+
+* [Rate limits](/getting-started/rate-limits)
+* [Errors](/getting-started/errors)
+* [Block risky packages in CI](/guides/block-risky-packages-in-ci)
+* [Scan workflows on pull requests](/guides/scan-workflows-on-pull-requests)

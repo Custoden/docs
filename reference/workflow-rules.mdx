@@ -1,0 +1,51 @@
+---
+title: "Workflow rules"
+description: "Every rule the workflow and run history endpoints can return."
+---
+
+Rules returned by [Analyze a workflow](/api-reference/analyze-a-workflow) and [Scan recent runs](/api-reference/scan-recent-runs).
+
+## Secret theft
+
+| Rule | Severity | Detects |
+|---|---|---|
+| `secret-exfiltration` | critical or high | Critical: a step uses secrets and contacts a hardcoded IP, a throwaway IP hostname or a webhook or paste service. High: many secrets posted in one request, as GhostAction did |
+| `all-secrets-serialized` | critical | `toJSON(secrets)`, which puts every secret into one value. Used by the Shai-Hulud worm |
+| `environment-dump` | high | The whole environment piped into an encoder or network tool |
+| `log-masking-bypass` | high | Secrets encoded, or output double base64 encoded, so GitHub's log masking does not hide them |
+| `runner-memory-read` | critical | Reads `Runner.Worker` process memory, as in the tj-actions compromise |
+| `history-secret-harvest` | critical | Searches full git history (`fetch-depth: 0` with `git log -p`, or TruffleHog and Gitleaks) and sends data out |
+| `remote-script-execution` | high | Pipes a script from a gist, paste site or IP address into a shell |
+| `campaign-indicator` | critical | Contains an indicator from a [tracked campaign](/reference/threat-intelligence) |
+| `hardcoded-secret` | critical | A credential in AWS, GitHub, Slack, Stripe or private key format |
+
+## Malicious or risky actions
+
+| Rule | Severity | Detects |
+|---|---|---|
+| `malicious-action-commit` | critical | Pinned to a commit known to contain malicious code |
+| `action-owner-lookalike` | high | Action owner is one character away from a popular owner, such as `actons` for `actions` |
+| `action-owner-unclaimed` | critical | The owner account does not exist. Anyone can register it and publish code under that action name |
+| `action-repository-missing` | high | The owner exists but the repository does not |
+| `new-action-repository` | high | Action repository was created recently |
+| `forked-action` | medium | Action repository is a fork, often of the action it imitates |
+| `action-repository-moved` | medium | Repository was renamed or transferred. The old name can be reclaimed |
+| `archived-action` | low | Repository is archived |
+| `obscure-action` | low | Young repository with very little adoption |
+| `unpinned-action` | high, medium or low | Referenced by tag or branch instead of a commit SHA. High for branches, low for GitHub-maintained actions |
+## Injection and privilege
+
+| Rule | Severity | Detects |
+|---|---|---|
+| `untrusted-checkout` | critical | Pull request code checked out in a `pull_request_target` or `workflow_run` workflow |
+| `script-injection` | critical or high | Attacker-controlled values such as issue titles or branch names interpolated into `run` or `github-script`. Critical under privileged triggers |
+| `self-hosted-runner` | high or medium | Self-hosted runner reachable from issues and discussions (high, the Shai-Hulud 2.0 backdoor) or from pull requests (medium) |
+| `credential-persistence` | high | Artifact upload that may include the token stored by `actions/checkout` |
+| `insecure-commands` | high | `ACTIONS_ALLOW_UNSECURE_COMMANDS` enabled |
+| `excessive-permissions` | high or medium | `permissions: write-all` |
+| `secrets-inherit` | medium | `secrets: inherit` passed to an external reusable workflow |
+| `default-permissions` | medium or low | No `permissions` block |
+
+## Run history
+
+These only appear in [Scan recent runs](/api-reference/scan-recent-runs#rules-specific-to-runs): `workflow-removed-after-run`, `run-commit-rewritten`, `campaign-workflow-file` and `campaign-branch`.

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "Custoden",
+  "colors": {
+    "primary": "#e1251b",
+    "light": "#f5372c",
+    "dark": "#e1251b"
+  },
+  "background": {
+    "color": {
+      "light": "#ffffff",
+      "dark": "#0a0a0a"
+    }
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://custoden.com"
+  },
+  "favicon": "/favicon.svg",
+  "api": {
+    "openapi": "openapi.yaml",
+    "playground": {
+      "display": "interactive"
+    }
+  },
+  "navbar": {
+    "links": [
+      { "label": "GitHub", "href": "https://github.com/Custoden" }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "custoden.com",
+      "href": "https://custoden.com"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": ["introduction", "getting-started/quickstart", "getting-started/rate-limits", "getting-started/errors"]
+          },
+          {
+            "group": "Reference",
+            "pages": ["reference/package-findings", "reference/workflow-rules", "reference/threat-intelligence"]
+          },
+          {
+            "group": "Guides",
+            "pages": ["guides/block-risky-packages-in-ci", "guides/scan-workflows-on-pull-requests"]
+          }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "groups": [
+          {
+            "group": "Packages",
+            "pages": ["api-reference/check-a-package", "api-reference/check-multiple-packages"]
+          },
+          {
+            "group": "GitHub",
+            "pages": ["api-reference/analyze-a-workflow", "api-reference/scan-recent-runs"]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Custoden"
+    }
+  }
+}

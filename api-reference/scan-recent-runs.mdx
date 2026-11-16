@@ -1,0 +1,142 @@
+---
+title: "Scan recent workflow runs"
+openapi: "GET /v1/github/repos/{owner}/{repo}/runs"
+description: "Analyzes the workflows that actually ran in a public repository, not just the ones on the default branch."
+---
+
+Attackers who steal a token often push a workflow that sends secrets to their server, let it run once, then revert the commit or force-push over it. The file disappears from the repository, but the run stays in the Actions tab. This endpoint takes each recent run, fetches the workflow file at the exact commit it ran, analyzes it, and checks whether that commit is still part of its branch.
+
+Costs 10 units of your [rate limit](/getting-started/rate-limits).
+
+## Path parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `owner` | string | Repository owner |
+| `repo` | string | Repository name |
+
+## Query parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `limit` | integer | Runs to scan, newest first. 1 to 50, default 30 |
+
+## Example
+
+```bash
+curl "https://api.custoden.com/v1/github/repos/acme/app/runs?limit=20"
+```
+
+```json
+{
+  "repository": { "full_name": "acme/app", "default_branch": "main", "url": "https://github.com/acme/app" },
+  "runs_scanned": 20,
+  "summary": { "critical": 2, "high": 2, "medium": 0, "low": 0, "info": 0, "total": 4 },
+  "findings": [
+    {
+      "rule": "secret-exfiltration",
+      "severity": "critical",
+      "title": "Secrets sent to an untrusted endpoint",
+      "detail": "Step \"Upload report\" uses secrets and contacts http://198.51.99.20, a hardcoded IP address.",
+      "remediation": "Remove the step, rotate every secret it could read, and review who added it.",
+      "location": { "line": 9, "column": 14, "job": "a", "step": "Upload report" },
+      "workflow": { "path": ".github/workflows/security-check.yml", "commit": "a3f9c2e...", "state": "removed" },
+      "runs": [18234567890]
+    },
+    {
+      "rule": "workflow-removed-after-run",
+      "severity": "high",
+      "title": "Workflow ran but is not on the default branch",
+      "detail": ".github/workflows/security-check.yml at a3f9c2e ran on 2026-11-10 (branch main) and does not exist on main. That version had access to secrets.",
+      "...": "..."
+    },
+    {
+      "rule": "run-commit-rewritten",
+      "severity": "high",
+      "title": "Run commit was removed from its branch",
+      "detail": "Run 18234567890 executed a3f9c2e on \"main\", which is no longer part of that branch. The branch was force-pushed after the run, which also hides what the workflow did.",
+      "...": "..."
+    }
+  ],
+  "runs": [
+    {
+      "id": 18234567890,
+      "url": "https://github.com/acme/app/actions/runs/18234567890",
+      "workflow_name": "Security Check",
+      "workflow_path": ".github/workflows/security-check.yml",
+      "event": "push",
+      "branch": "main",
+      "commit": "a3f9c2e...",
+      "actor": "mallory",
+      "created_at": "2026-11-10T10:00:00Z",
+      "conclusion": "success",
+      "from_fork": false,
+      "workflow_state": "removed",
+      "commit_state": "rewritten",
+      "findings": 4
+    }
+  ],
+  "checks": { "branch_history": { "status": "complete", "checked": 6, "total": 6 } },
+  "checked_at": "2026-11-16T12:14:02.512Z"
+}
+```
+
+## Response
+
+| Field | Type | Description |
+|---|---|---|
+| `repository` | object | `full_name`, `default_branch` and `url` |
+| `runs_scanned` | integer | Runs returned by GitHub |
+| `summary` | object | Count of findings per severity, plus `total` |
+| `findings` | array | Findings across all workflow versions that ran, sorted by severity |
+| `runs` | array | One entry per run |
+| `checks.branch_history` | object | How many branch and commit pairs were checked for force-pushes |
+| `checked_at` | string | ISO 8601 timestamp |
+
+### Finding
+
+Same fields as [workflow findings](/api-reference/analyze-a-workflow#finding), plus:
+
+| Field | Type | Description |
+|---|---|---|
+| `workflow.path` | string | Workflow file that ran |
+| `workflow.commit` | string | Commit the run used |
+| `workflow.state` | string | See `workflow_state` below |
+| `runs` | integer[] | IDs of runs that used this workflow version |
+
+For workflow versions that still match the default branch, only `high` and `critical` findings are included. Use [Analyze a workflow](/api-reference/analyze-a-workflow) for the full hardening report on current files.
+
+### Run
+
+| Field | Description |
+|---|---|
+| `workflow_state` | `current` (identical to the default branch), `modified` (differs from it), `removed` (not on the default branch), `dynamic` (GitHub-managed, such as CodeQL default setup) or `unavailable` (file could not be fetched) |
+| `commit_state` | `on_branch`, `rewritten` (commit is no longer in the branch history), `branch_deleted` or `not_checked` |
+| `from_fork` | The run used code from a fork, as in pull requests from forks |
+| `findings` | Number of findings linked to this run |
+
+Branch deletion after a merged pull request is normal, so `branch_deleted` alone does not produce a finding.
+
+## Rules specific to runs
+
+| Rule | Severity | Meaning |
+|---|---|---|
+| `workflow-removed-after-run` | high, medium or low | The workflow version that ran is not on the default branch. High when that version has high or critical findings, medium when it had access to secrets |
+| `run-commit-rewritten` | high on the default branch, otherwise medium or low | The commit that ran was removed from its branch by a force-push |
+| `campaign-workflow-file` | critical or medium | The file name matches one used by a known campaign, such as `shai-hulud-workflow.yml` |
+| `campaign-branch` | critical | The run happened on a branch named after Shai-Hulud |
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_repository` | Owner or repository is not a valid GitHub name |
+| 400 | `invalid_limit` | `limit` is not an integer from 1 to 50 |
+| 404 | `repository_not_found` | Repository does not exist or is private |
+| 429 | `rate_limited` | See [Rate limits](/getting-started/rate-limits) |
+| 502 | `upstream_unavailable` | GitHub did not respond |
+| 503 | `temporarily_unavailable` | The endpoint is briefly unavailable. Retry after `details.retry_after` seconds |
+
+## Limits
+
+Only public repositories are supported. GitHub keeps run history for 90 days by default, and repository admins can delete runs, so a clean result covers what is still visible.
