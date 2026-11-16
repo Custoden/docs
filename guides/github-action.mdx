@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Custoden/action@v0.2.0
+      - uses: Custoden/action@v0.3.0
   test:
     needs: custoden
     runs-on: ubuntu-latest
@@ -56,7 +56,7 @@ jobs:
   guard:
     runs-on: ubuntu-latest
     steps:
-      - uses: Custoden/action@v0.2.0
+      - uses: Custoden/action@v0.3.0
         with:
           cancel-runs: true
           comment: true
@@ -68,6 +68,10 @@ When the check fails, `cancel-runs` cancels every other run for the pull request
 Never add a checkout of the pull request head to a `pull_request_target` workflow. That is the misconfiguration prt-scan exploited.
 </Warning>
 
+## If a pull request removes Custoden
+
+A pull request can delete the gate from `ci.yml`, but not the guard. The guard reports `custoden-removed` when a workflow stops running Custoden or is deleted, and `custoden-weakened` when fewer jobs wait for it or it is set to never fail. Both are `high`, so the check fails and the pull request's runs are cancelled.
+
 ## What it stops
 
 | Attack | How it is stopped |
@@ -76,6 +80,7 @@ Never add a checkout of the pull request head to a `pull_request_target` workflo
 | Payload in `conftest.py`, a Makefile or a `postinstall` hook (prt-scan, wfx-loot) | Gated jobs never run the file |
 | New workflow that steals secrets (wfx-loot, Shai-Hulud) | The guard cancels its runs and reports it |
 | Injected step in an existing workflow | The guard cancels the run and reports it |
+| Pull request that deletes the gate or the guard | The guard still runs from the default branch, reports the removal and cancels the runs |
 
 Cancelling is a race: a run that starts at the same moment as the guard can execute its first steps before it is stopped. Payloads that collect for a while before sending are usually stopped in time. Rotate any secret a cancelled run could read.
 
