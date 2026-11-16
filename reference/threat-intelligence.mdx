@@ -16,6 +16,8 @@ Indicators are literal strings, such as file names, hosts and IP addresses, that
 | s1ngularity (Nx) | Aug 2025 | Malicious Nx releases drove local AI coding CLIs with permission-bypass flags to inventory secrets | AI CLI permission bypass flags, `s1ngularity-repository`, `/tmp/inventory.txt` |
 | GhostAction | Sep 2025 | Stolen maintainer tokens used to commit fake "security" workflows that POST secrets, later every credential in git history | Collector hosts and IPs, `Prepare Cache Busting`, many secrets posted in one request, history harvesting |
 | tj-actions | Mar 2025 | Release tags moved to a commit that dumped runner memory and printed secrets double base64 encoded in public logs | Malicious commit SHA, `memdump.py`, `Runner.Worker` memory reads, double base64 |
+| wfx-loot | Nov 2026 | Hijacked accounts pushed a CI secret stealer into repositories they could write to: injected workflow steps, a `postinstall` hook running a hidden `.ci-*.sh` script, or throwaway `build-audit-*.yml` workflows. Forged required status checks and deleted the run afterwards | Collector IPs and payload variables, `toJSON(secrets)`, hidden install hook scripts, environment dumps, workflow file and branch names in run history |
+| prt-scan | Mar 2026 | Automated fork pull requests against `pull_request_target` workflows, with the payload in files that run during CI (`conftest.py`, `package.json` scripts, Makefiles, `setup.py`) | Log markers, checkout token extraction, environment dumps, temporary workflow injection, `prt-scan-*` branches in run history |
 | StegaBin | Feb 2026 | Typosquats with install scripts loading a payload disguised as `vendor/scrypt-js/version.js` | Payload path, C2 IP address |
 
 ## Recurring techniques
@@ -23,6 +25,8 @@ Indicators are literal strings, such as file names, hosts and IP addresses, that
 The same handful of techniques shows up across campaigns. Each maps to a rule:
 
 * **Code that runs without being imported.** npm install scripts, Python `.pth` files and `sitecustomize.py`. See `install-script`, `startup-code-execution` and `startup-hook`.
+* **Hiding in files CI already runs.** Test setup, Makefiles and package scripts in a pull request, so the workflow itself looks unchanged. See [CI file rules](/reference/ci-file-rules).
+* **Stealing the workflow token.** Reading the token `actions/checkout` leaves in git config, or requesting OIDC tokens to reach cloud accounts. See `checkout-token-extraction` and `oidc-token-request`.
 * **Bringing a second runtime.** Downloading Bun to run the payload outside Node.js tooling. See `bun-dropper`.
 * **Harvesting with real tools.** Running TruffleHog or Gitleaks on the machine or the repository history. See `secret-scanner-download` and `history-secret-harvest`.
 * **Hiding secrets from log masking.** Encoding secrets before printing them. See `log-masking-bypass`.
@@ -37,6 +41,10 @@ The same handful of techniques shows up across campaigns. Each maps to a rule:
 * GitGuardian: [Shai-Hulud](https://blog.gitguardian.com/shai-hulud-a-persistent-secret-leaking-campaign/), [GhostAction](https://blog.gitguardian.com/ghostaction-campaign-3-325-secrets-stolen/), [GhostAction returns](https://blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/)
 * Datadog Security Labs: [Shai-Hulud 2.0](https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/)
 * Sumo Logic: [Detecting Sha1-Hulud](https://www.sumologic.com/blog/detect-sha1-hulud)
+* Aikido: [wfx-loot](https://www.aikido.dev/blog/compromised-github-accounts-push-ci-secret-stealer-to-tens-of-thousands-of-repositories)
+* OX Security: [wfx-loot](https://www.ox.security/blog/thousands-of-github-accounts-hijacked-with-wfx-loot-ci-secret-stealing-malware-via-github-actions-npm/)
+* Wiz: [prt-scan](https://www.wiz.io/blog/six-accounts-one-actor-inside-the-prt-scan-supply-chain-campaign)
+* SafeDep: [prt-scan](https://safedep.io/blog/prt-scan-github-actions-exfiltration-campaign)
 * Socket: [keyv and cacheable compromise](https://socket.dev/blog/popular-npm-packages-in-the-keyv-and-cacheable-namespaces-compromised-in-active-supply-chain), [Miasma PyPI wave](https://socket.dev/blog/shai-hulud-descends-to-hades-miasma-pypi-wave), [StegaBin](https://socket.dev/blog/stegabin-26-malicious-npm-packages-use-pastebin-steganography)
 * Aikido: [tensorlake compromise](https://www.aikido.dev/blog/tensorlake-npm-package-compromised)
 * GitLab: [Shai-Hulud copycat targets Python developers](https://about.gitlab.com/blog/shai-hulud-copycat-campaign-targets-python-developers/)

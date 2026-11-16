@@ -1,0 +1,47 @@
+---
+title: "CI file rules"
+description: "Findings returned when analyzing package scripts, test setup, build files and shell scripts."
+---
+
+Returned by [Analyze files that run during CI](/api-reference/analyze-ci-files).
+
+## Credential theft
+
+| Rule | Severity | Meaning |
+|---|---|---|
+| `checkout-token-extraction` | critical | Reads the token that `actions/checkout` stores in git config. prt-scan used this to steal the workflow token |
+| `environment-dump` | high | Encodes the whole environment, a common way to move every secret out in one value |
+| `secret-file-harvest` | high | Reads credential files such as `~/.aws/credentials`, `~/.npmrc` or SSH keys |
+| `oidc-token-request` | medium | Requests a GitHub OIDC token, which can be exchanged for cloud credentials |
+| `runner-memory-read` | critical | Reads CI runner process memory, where secrets are held unmasked |
+
+## Persistence and escalation
+
+| Rule | Severity | Meaning |
+|---|---|---|
+| `install-hook-hidden-script` | high | An install hook runs a hidden dotfile script. A wfx-loot variant delivered its stealer this way |
+| `workflow-dispatch-from-code` | high | Creates or dispatches workflows from build code |
+| `workflow-injection` | high | Writes GitHub Actions workflow files |
+| `forged-status-check` | medium | Posts `success` commit statuses from build code. Can be used to satisfy required checks without running them |
+| `agent-persistence` | high | Writes editor or AI agent autostart hooks |
+
+## Delivery and exfiltration
+
+| Rule | Severity | Meaning |
+|---|---|---|
+| `exfil-endpoint` | high | Contacts a known data exfiltration service |
+| `bare-ip-request` | medium | Sends requests to a hardcoded public IP address |
+| `remote-shell` | high | Pipes a downloaded script into a shell |
+| `encoded-eval` | high | Executes base64-decoded code |
+| `obfuscated-code` | high | Contains obfuscated code, or a long encoded block in a file that runs during CI |
+| `bun-dropper` | high | Downloads the Bun runtime |
+| `secret-scanner-download` | high | Downloads a secret scanner |
+| `cloud-metadata` | medium | Queries cloud instance metadata |
+| `ai-agent-abuse` | critical | Runs AI coding agents with safety checks disabled |
+| `github-repo-creation` | high | Creates GitHub repositories with the API |
+
+## Campaigns
+
+| Rule | Severity | Meaning |
+|---|---|---|
+| `campaign-indicator` | critical | Contains an indicator published for a known campaign. See [Threat intelligence](/reference/threat-intelligence) |

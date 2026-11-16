@@ -17,6 +17,7 @@ They apply per client IP address and are counted in units.
 | [`GET /v1/packages/{ecosystem}/{name}`](/api-reference/check-a-package) | 1 |
 | [`POST /v1/packages/check`](/api-reference/check-multiple-packages) | 1 per package (up to 10) |
 | [`POST /v1/github/workflows/analyze`](/api-reference/analyze-a-workflow) | 2 |
+| [`POST /v1/github/files/analyze`](/api-reference/analyze-ci-files) | 2 per request (up to 10 files) |
 | [`GET /v1/github/repos/{owner}/{repo}/runs`](/api-reference/scan-recent-runs) | 10 |
 
 Requests rejected for invalid input are not charged.

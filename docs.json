@@ -30,7 +30,10 @@
   },
   "navbar": {
     "links": [
-      { "label": "GitHub", "href": "https://github.com/Custoden" }
+      {
+        "label": "GitHub",
+        "href": "https://github.com/Custoden"
+      }
     ],
     "primary": {
       "type": "button",
@@ -45,15 +48,29 @@
         "groups": [
           {
             "group": "Getting started",
-            "pages": ["introduction", "getting-started/quickstart", "getting-started/rate-limits", "getting-started/errors"]
+            "pages": [
+              "introduction",
+              "getting-started/quickstart",
+              "getting-started/rate-limits",
+              "getting-started/errors"
+            ]
           },
           {
             "group": "Reference",
-            "pages": ["reference/package-findings", "reference/workflow-rules", "reference/threat-intelligence"]
+            "pages": [
+              "reference/package-findings",
+              "reference/workflow-rules",
+              "reference/ci-file-rules",
+              "reference/threat-intelligence"
+            ]
           },
           {
             "group": "Guides",
-            "pages": ["guides/block-risky-packages-in-ci", "guides/scan-workflows-on-pull-requests"]
+            "pages": [
+              "guides/github-action",
+              "guides/block-risky-packages-in-ci",
+              "guides/scan-workflows-on-pull-requests"
+            ]
           }
         ]
       },
@@ -62,11 +79,18 @@
         "groups": [
           {
             "group": "Packages",
-            "pages": ["api-reference/check-a-package", "api-reference/check-multiple-packages"]
+            "pages": [
+              "api-reference/check-a-package",
+              "api-reference/check-multiple-packages"
+            ]
           },
           {
             "group": "GitHub",
-            "pages": ["api-reference/analyze-a-workflow", "api-reference/scan-recent-runs"]
+            "pages": [
+              "api-reference/analyze-a-workflow",
+              "api-reference/analyze-ci-files",
+              "api-reference/scan-recent-runs"
+            ]
           }
         ]
       }

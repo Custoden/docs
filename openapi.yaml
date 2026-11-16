@@ -111,6 +111,39 @@ paths:
         '422': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
+  /v1/github/files/analyze:
+    post:
+      operationId: analyzeCiFiles
+      summary: Analyze files that run during CI
+      description: Costs 2 rate limit units. Up to 10 files and 256 KB per request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    type: object
+                    required: [path, content]
+                    properties:
+                      path: { type: string, maxLength: 512, description: Repository-relative path. The file name decides how it is analyzed }
+                      content: { type: string }
+      responses:
+        '200':
+          description: CI files report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FilesReport' }
+        '400': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
   /v1/github/repos/{owner}/{repo}/runs:
     get:
       operationId: scanRecentRuns
@@ -307,6 +340,31 @@ components:
           type: object
           properties:
             action_repositories: { $ref: '#/components/schemas/Check' }
+
+    FileFinding:
+      type: object
+      required: [rule, severity, title, detail, path, line]
+      properties:
+        rule: { type: string }
+        severity: { $ref: '#/components/schemas/Severity' }
+        title: { type: string }
+        detail: { type: string }
+        path: { type: string }
+        line: { type: integer }
+
+    FilesReport:
+      type: object
+      required: [summary, files, findings]
+      properties:
+        summary: { $ref: '#/components/schemas/SeveritySummary' }
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              path: { type: string }
+              kind: { type: string, enum: [package-manifest, python-build, python-test-setup, makefile, script, action, source] }
+        findings: { type: array, items: { $ref: '#/components/schemas/FileFinding' } }
 
     RunsReport:
       type: object

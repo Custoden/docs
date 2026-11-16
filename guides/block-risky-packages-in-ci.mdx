@@ -3,6 +3,10 @@ title: "Block risky packages in CI"
 description: "Fail a pull request when it adds or upgrades an npm package that is malicious or suspicious."
 ---
 
+<Tip>
+The [GitHub Action](/guides/github-action) does this for you, and also checks files that run during CI.
+</Tip>
+
 The free tier allows 100 units a day per IP, so check only the dependencies a pull request changes, not the whole lockfile.
 
 ## Script

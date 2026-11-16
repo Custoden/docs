@@ -1,0 +1,86 @@
+---
+title: "GitHub Action"
+description: "Check every pull request and stop the runs of one that carries an attack."
+---
+
+[Custoden Check](https://github.com/Custoden/action) runs on pull requests, pushes and merge queues. It finds what changed and checks:
+
+* New and upgraded npm and PyPI packages in your lockfiles
+* New and changed workflow files
+* New and changed files that run during CI, such as `package.json` scripts, `conftest.py`, `setup.py`, Makefiles and shell scripts
+
+It annotates the affected lines, writes a job summary, can comment on the pull request, and fails when something crosses your threshold.
+
+## Gate your jobs
+
+Make the jobs that install dependencies or run code depend on Custoden. When it fails, they never start.
+
+```yaml .github/workflows/ci.yml
+name: CI
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  custoden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Custoden/action@v0.2.0
+  test:
+    needs: custoden
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: npm ci
+      - run: npm test
+```
+
+## Guard every pull request
+
+A pull request can edit the workflows it triggers, including the one above. A guard on `pull_request_target` runs from your default branch instead, so the pull request cannot change it. The action reads the changed files through the GitHub API and never checks out or runs them.
+
+```yaml .github/workflows/custoden-guard.yml
+name: Custoden guard
+on:
+  pull_request_target:
+permissions:
+  contents: read
+  actions: write
+  pull-requests: write
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Custoden/action@v0.2.0
+        with:
+          cancel-runs: true
+          comment: true
+```
+
+When the check fails, `cancel-runs` cancels every other run for the pull request's commit, including workflows the pull request added, and lists them in the comment.
+
+<Warning>
+Never add a checkout of the pull request head to a `pull_request_target` workflow. That is the misconfiguration prt-scan exploited.
+</Warning>
+
+## What it stops
+
+| Attack | How it is stopped |
+|---|---|
+| Malicious package added to a lockfile | Gated jobs never run `npm ci` or `pip install` |
+| Payload in `conftest.py`, a Makefile or a `postinstall` hook (prt-scan, wfx-loot) | Gated jobs never run the file |
+| New workflow that steals secrets (wfx-loot, Shai-Hulud) | The guard cancels its runs and reports it |
+| Injected step in an existing workflow | The guard cancels the run and reports it |
+
+Cancelling is a race: a run that starts at the same moment as the guard can execute its first steps before it is stopped. Payloads that collect for a while before sending are usually stopped in time. Rotate any secret a cancelled run could read.
+
+Someone with write access can also push straight to a branch. Protect your default branch, require pull requests, and keep deployment secrets in environments with required reviewers. Do not rely on required status checks alone: wfx-loot posted forged `success` statuses for the check names repositories required.
+
+## Inputs and outputs
+
+See the [README](https://github.com/Custoden/action#inputs) for every input and output.
