@@ -62,6 +62,14 @@ Check what ran in a public repository over its last 30 runs, including workflows
 curl https://api.custoden.com/v1/github/repos/OWNER/REPO/runs
 ```
 
+## Scan a repository
+
+Check a public repository's dependencies, workflows and CI files in one request (2 scans per hour):
+
+```bash
+curl https://api.custoden.com/v1/github/repos/OWNER/REPO/scan
+```
+
 ## JavaScript
 
 ```js

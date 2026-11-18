@@ -87,6 +87,7 @@
           {
             "group": "GitHub",
             "pages": [
+              "api-reference/scan-a-repository",
               "api-reference/analyze-a-workflow",
               "api-reference/analyze-ci-files",
               "api-reference/scan-recent-runs"

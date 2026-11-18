@@ -19,6 +19,7 @@ curl https://api.custoden.com/v1/packages/npm/expres
 | `POST /v1/packages/check` | Up to 10 packages in one request |
 | `POST /v1/github/workflows/analyze` | Secret theft, script injection, risky actions and permission issues in a workflow |
 | `GET /v1/github/repos/{owner}/{repo}/runs` | Workflows that actually ran, including ones later reverted or force-pushed away |
+| `GET /v1/github/repos/{owner}/{repo}/scan` | Dependencies, workflows and CI files of a public repository in one request |
 
 The full specification is in [`openapi.yaml`](openapi.yaml).
 

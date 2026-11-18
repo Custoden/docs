@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Custoden API
   version: v1
-  description: Free, keyless API for checking open-source packages and GitHub Actions workflows.
+  description: Free, keyless API for checking open-source packages, GitHub Actions workflows and public repositories.
   contact:
     url: https://github.com/Custoden/docs
 servers:
@@ -170,6 +170,33 @@ paths:
               schema: { $ref: '#/components/schemas/RunsReport' }
         '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /v1/github/repos/{owner}/{repo}/scan:
+    get:
+      operationId: scanRepository
+      summary: Scan a repository
+      description: Dependencies, workflows and CI files of a public repository. Limited to 2 scans per hour and 10 per day. Cached results are free.
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$' }
+        - name: repo
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$' }
+      responses:
+        '200':
+          description: Repository scan report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RepoScanReport' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '502': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
@@ -415,6 +442,93 @@ components:
           type: object
           properties:
             branch_history: { $ref: '#/components/schemas/Check' }
+        checked_at: { type: string, format: date-time }
+
+    RepoCheck:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [complete, partial, skipped] }
+        reason: { type: string }
+
+    RepoFinding:
+      type: object
+      required: [rule, category, severity, title, detail, path, line]
+      properties:
+        rule: { type: string }
+        category: { type: string, enum: [dependencies, workflows, files] }
+        severity: { $ref: '#/components/schemas/Severity' }
+        title: { type: string }
+        detail: { type: string }
+        path: { type: string }
+        line: { type: [integer, 'null'] }
+        package:
+          type: object
+          properties:
+            ecosystem: { type: string, enum: [npm, pypi] }
+            name: { type: string }
+            version: { type: [string, 'null'] }
+        remediation: { type: string }
+        references: { type: array, items: { type: string, format: uri } }
+
+    RepoScanReport:
+      type: object
+      required: [repository, summary, findings, dependencies, workflows, checks, checked_at]
+      properties:
+        repository:
+          type: object
+          properties:
+            full_name: { type: string }
+            default_branch: { type: string }
+            commit: { type: [string, 'null'] }
+            url: { type: string, format: uri }
+        summary: { $ref: '#/components/schemas/SeveritySummary' }
+        findings: { type: array, items: { $ref: '#/components/schemas/RepoFinding' } }
+        dependencies:
+          type: object
+          properties:
+            manifests:
+              type: array
+              items:
+                type: object
+                properties:
+                  path: { type: string }
+                  ecosystem: { type: string, enum: [npm, pypi] }
+                  lockfile: { type: [string, 'null'] }
+                  direct: { type: integer }
+            locked_packages: { type: integer }
+            outdated:
+              type: array
+              items:
+                type: object
+                properties:
+                  ecosystem: { type: string, enum: [npm, pypi] }
+                  name: { type: string }
+                  current: { type: string }
+                  latest: { type: string }
+                  manifest: { type: string }
+            unused:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: { type: string }
+                  manifest: { type: string }
+        workflows:
+          type: array
+          items:
+            type: object
+            properties:
+              path: { type: string }
+              findings: { type: integer }
+        checks:
+          type: object
+          properties:
+            vulnerabilities: { $ref: '#/components/schemas/RepoCheck' }
+            outdated: { $ref: '#/components/schemas/RepoCheck' }
+            unused: { $ref: '#/components/schemas/RepoCheck' }
+            workflows: { $ref: '#/components/schemas/RepoCheck' }
+            files: { $ref: '#/components/schemas/RepoCheck' }
         checked_at: { type: string, format: date-time }
 
     WorkflowState:

@@ -1,0 +1,164 @@
+---
+title: "Scan a repository"
+openapi: "GET /v1/github/repos/{owner}/{repo}/scan"
+description: "A quick security check of a public GitHub repository: dependencies, workflows and CI files in one request."
+---
+
+Scans the default branch of a public repository and returns one report covering:
+
+* **Dependencies** in npm (`package.json` with `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml` or `yarn.lock`) and Python (`requirements*.txt`, `pyproject.toml`, `poetry.lock`, `uv.lock`): known malware, known vulnerabilities, outdated, deprecated and yanked versions, possible typosquats, packages installed from URLs, and missing lockfiles.
+* **Unused npm dependencies**: runtime `dependencies` that no file in the package imports.
+* **Workflows** in `.github/workflows`, with the same rules as [Analyze a workflow](/api-reference/analyze-a-workflow).
+* **CI files** such as package scripts, `setup.py`, `conftest.py`, Makefiles and shell scripts, with the same rules as [Analyze CI files](/api-reference/analyze-ci-files).
+
+It is meant as a fast first look, not a full audit. Repository files are analyzed in memory and not stored.
+
+This endpoint has its own [rate limit](/getting-started/rate-limits#repository-scans) of 2 scans per hour and 10 per day.
+
+## Path parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `owner` | string | Repository owner |
+| `repo` | string | Repository name |
+
+## Example
+
+```bash
+curl https://api.custoden.com/v1/github/repos/acme/app/scan
+```
+
+```json
+{
+  "repository": {
+    "full_name": "acme/app",
+    "default_branch": "main",
+    "commit": "43fca52d28a422c8be48fd489cbd4f2d6152bab6",
+    "url": "https://github.com/acme/app"
+  },
+  "summary": { "critical": 1, "high": 1, "medium": 0, "low": 2, "info": 1, "total": 5 },
+  "findings": [
+    {
+      "rule": "untrusted-checkout",
+      "category": "workflows",
+      "severity": "critical",
+      "title": "Pull request code checked out in a privileged workflow",
+      "detail": "...",
+      "path": ".github/workflows/ci.yml",
+      "line": 8,
+      "remediation": "..."
+    },
+    {
+      "rule": "vulnerable-dependency",
+      "category": "dependencies",
+      "severity": "high",
+      "title": "undici@7.28.0 has 2 known vulnerabilities",
+      "detail": "GHSA-...: ...",
+      "path": "package-lock.json",
+      "line": null,
+      "package": { "ecosystem": "npm", "name": "undici", "version": "7.28.0" },
+      "remediation": "Upgrade to a fixed version (7.29.0).",
+      "references": ["https://osv.dev/vulnerability/GHSA-..."]
+    },
+    {
+      "rule": "unused-dependency",
+      "category": "dependencies",
+      "severity": "low",
+      "title": "Unused dependency left-pad",
+      "detail": "left-pad is listed in dependencies but no file in this package imports it. Unused packages still install and run their install scripts.",
+      "path": "package.json",
+      "line": 14,
+      "package": { "ecosystem": "npm", "name": "left-pad", "version": null },
+      "remediation": "Remove left-pad from package.json if nothing loads it at runtime."
+    }
+  ],
+  "dependencies": {
+    "manifests": [{ "path": "package.json", "ecosystem": "npm", "lockfile": "package-lock.json", "direct": 18 }],
+    "locked_packages": 412,
+    "outdated": [{ "ecosystem": "npm", "name": "express", "current": "4.21.2", "latest": "5.1.0", "manifest": "package.json" }],
+    "unused": [{ "name": "left-pad", "manifest": "package.json" }]
+  },
+  "workflows": [{ "path": ".github/workflows/ci.yml", "findings": 1 }],
+  "checks": {
+    "vulnerabilities": { "status": "complete" },
+    "outdated": { "status": "complete" },
+    "unused": { "status": "complete" },
+    "workflows": { "status": "complete" },
+    "files": { "status": "complete" }
+  },
+  "checked_at": "2026-11-18T10:51:04.112Z"
+}
+```
+
+## Response
+
+| Field | Type | Description |
+|---|---|---|
+| `repository` | object | `full_name`, `default_branch`, `commit` (the commit that was scanned, or `null`) and `url` |
+| `summary` | object | Count of findings per severity, plus `total` |
+| `findings` | array | All findings, sorted by severity |
+| `dependencies.manifests` | array | Each dependency file found, its lockfile (or `null`) and the number of direct dependencies |
+| `dependencies.locked_packages` | integer | Distinct package versions across all lockfiles |
+| `dependencies.outdated` | array | Direct dependencies at least one major version behind the latest release |
+| `dependencies.unused` | array | npm runtime dependencies that nothing imports |
+| `workflows` | array | Each workflow analyzed and its number of findings |
+| `checks` | object | Status of each check, see below |
+| `checked_at` | string | ISO 8601 timestamp |
+
+### Finding
+
+| Field | Type | Description |
+|---|---|---|
+| `rule` | string | Rule ID. See the tables below |
+| `category` | string | `dependencies`, `workflows` or `files` |
+| `severity` | string | `critical`, `high`, `medium`, `low` or `info` |
+| `title` | string | One-line summary |
+| `detail` | string | What was found |
+| `path` | string | File the finding is in |
+| `line` | integer or null | Line in that file, when known |
+| `package` | object | `ecosystem`, `name` and `version` (or `null`) for dependency findings |
+| `remediation` | string | What to do, when available |
+| `references` | string[] | Advisory links, when available |
+
+### Checks
+
+Each check has a `status` of `complete`, `partial` or `skipped`, and a `reason` when it is not `complete`. A check is `partial` when some items could not be checked, for example when an upstream service was slow or the repository is very large, and `skipped` when there was nothing to check.
+
+Vulnerabilities are only checked for versions that are actually known: versions in a lockfile, or exact versions in a manifest. Dependencies declared as ranges without a lockfile are reported in `checks.vulnerabilities.reason`, because the version that gets installed depends on when you install.
+
+## Dependency rules
+
+| Rule | Severity | Meaning |
+|---|---|---|
+| `known-malicious` | critical | A dependency version is listed as malware in OSV |
+| `vulnerable-dependency` | highest advisory severity | A dependency version has known vulnerabilities. Advisories without a severity count as medium |
+| `yanked-dependency` | medium | The PyPI release was withdrawn by its maintainers |
+| `possible-typosquat` | medium | The name is a small change from a popular package and the package is not widely used |
+| `dependency-from-url` | medium | Installed from git or a URL instead of the registry |
+| `insecure-registry-url` | medium | A lockfile downloads packages over plain `http://` |
+| `deprecated-dependency` | low | The npm version is deprecated by its maintainers |
+| `unused-dependency` | low | An npm runtime dependency that no file in the package imports, references in a script, or names in a config file |
+| `missing-lockfile` | low | A `package.json` with no lockfile in its directory or a parent directory |
+| `unpinned-dependencies` | low | A requirements file without a lockfile that does not pin exact versions |
+| `outdated-dependency` | info | A direct dependency is at least one major version behind. For `0.x` packages, a minor version counts |
+
+Workflow findings use the [workflow rules](/reference/workflow-rules) and CI file findings use the [CI file rules](/reference/ci-file-rules).
+
+## Caching
+
+Results are cached for 10 minutes per repository (`Cache-Control: public, max-age=600`). Requesting a cached result does not count against your limit.
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_repository` | Owner or repository is not a valid GitHub name |
+| 404 | `repository_not_found` | Repository does not exist, is private, or has no files on its default branch. Not charged |
+| 422 | `repository_too_large` | The repository is too large for a quick scan |
+| 429 | `rate_limited` | See [Rate limits](/getting-started/rate-limits#repository-scans) |
+| 502 | `upstream_unavailable` | GitHub did not respond. Not charged |
+| 503 | `temporarily_unavailable` | Scanning is busy or briefly unavailable. Retry after `details.retry_after` seconds. Not charged |
+
+## Limits
+
+Only public repositories and the default branch are scanned. Unused dependency detection reads static imports, so packages loaded by a framework, plugin system or dynamic `require` can show up as unused. Check before removing them.

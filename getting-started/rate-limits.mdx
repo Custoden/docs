@@ -22,6 +22,17 @@ They apply per client IP address and are counted in units.
 
 Requests rejected for invalid input are not charged.
 
+## Repository scans
+
+[`GET /v1/github/repos/{owner}/{repo}/scan`](/api-reference/scan-a-repository) has its own limit and does not use units:
+
+| Window | Scans |
+|---|---|
+| Per hour | 2 |
+| Per day | 10 |
+
+Cached results (the same repository within 10 minutes) are free, and so are requests that fail because the repository was not found or GitHub was unavailable. On this endpoint the `RateLimit-*` headers describe the hourly scan limit, and `details.scope` in a `429` is `hour` or `day`.
+
 ## Headers
 
 Every charged response includes:

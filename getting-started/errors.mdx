@@ -37,6 +37,7 @@ Errors use standard HTTP status codes and a consistent JSON body:
 | 404 | `repository_not_found` | GitHub repository does not exist or is private |
 | 404 | `not_found` | Unknown endpoint |
 | 413 | `payload_too_large` | Body exceeds 64 KB (batch) or 256 KB (workflow) |
+| 422 | `repository_too_large` | Repository is too large for a quick scan |
 | 422 | `invalid_workflow` | Body is not valid YAML or has no `jobs` map. `details.line` and `details.column` point to the parse error |
 | 429 | `rate_limited` | See [Rate limits](/getting-started/rate-limits) |
 | 502 | `upstream_unavailable` | npm, PyPI, OSV or GitHub did not respond. `details.source` names the service. Retry after a short delay |

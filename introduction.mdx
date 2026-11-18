@@ -40,6 +40,9 @@ curl https://api.custoden.com/v1/packages/npm/expres
   <Card title="Scan recent runs" icon="clock-rotate-left" href="/api-reference/scan-recent-runs">
     The workflows that actually ran, including ones later reverted or force-pushed away.
   </Card>
+  <Card title="Scan a repository" icon="magnifying-glass" href="/api-reference/scan-a-repository">
+    Vulnerable, outdated and unused dependencies, workflows and CI files of a public repository in one request.
+  </Card>
 </CardGroup>
 
 ## Base URL
@@ -55,10 +58,10 @@ All responses are JSON. Requests with a body accept JSON, and the workflow endpo
 * Package metadata and published artifacts from the npm registry and PyPI
 * Vulnerability and malware advisories from [OSV](https://osv.dev), which includes the GitHub Advisory Database and the OpenSSF Malicious Packages dataset
 * Download counts from the npm downloads API and [pypistats.org](https://pypistats.org)
-* Workflow runs and repository metadata from the GitHub API
+* Workflow runs, repository metadata and repository files from GitHub
 * Indicators and techniques from published campaign research. See [Threat intelligence](/reference/threat-intelligence)
 
-Workflows and package contents are analyzed in memory and not stored.
+Workflows, package contents and repository files are analyzed in memory and not stored.
 
 <CardGroup cols={3}>
   <Card title="Quickstart" icon="rocket" href="/getting-started/quickstart" />
